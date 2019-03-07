@@ -25,7 +25,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm_notebook
+from tqdm import tqdm
+# switch between widget and console
+#from tqdm.auto import tqdm
+#tqdm.pandas()
 
 #%% [markdown]
 # ## Data Vectorization classes
@@ -321,9 +324,9 @@ class ReviewDataset(Dataset):
         """
         row = self._target_df.iloc[index]
 
-        review_vector =             self._vectorizer.vectorize(row.review)
+        review_vector = self._vectorizer.vectorize(row.review)
 
-        rating_index =             self._vectorizer.rating_vocab.lookup_token(row.rating)
+        rating_index = self._vectorizer.rating_vocab.lookup_token(row.rating)
 
         return {'x_data': review_vector,
                 'y_target': rating_index}
@@ -336,13 +339,14 @@ class ReviewDataset(Dataset):
         Returns:
             number of batches in the dataset
         """
-        return len(self) // batch_size  
+        #todo ROUND up?
+        return int(np.ceil(len(self)/batch_size))
     
 def generate_batches(dataset, batch_size, shuffle=True,
                      drop_last=True, device="cpu"):
     """
     A generator function which wraps the PyTorch DataLoader. It will 
-      ensure each tensor is on the write device location.
+      ensure each tensor is on the right device location.
     """
     dataloader = DataLoader(dataset=dataset, batch_size=batch_size,
                             shuffle=shuffle, drop_last=drop_last)
@@ -350,7 +354,7 @@ def generate_batches(dataset, batch_size, shuffle=True,
     for data_dict in dataloader:
         out_data_dict = {}
         for name, tensor in data_dict.items():
-            out_data_dict[name] = data_dict[name].to(device)
+            out_data_dict[name] = tensor.to(device)
         yield out_data_dict
 
 #%% [markdown]
@@ -426,7 +430,7 @@ def update_train_state(args, model, train_state):
     # Save model if performance improved
     elif train_state['epoch_index'] >= 1:
         loss_tm1, loss_t = train_state['val_loss'][-2:]
-
+        #todo why loss tm1?
         # If loss worsened
         if loss_t >= train_state['early_stopping_best_val']:
             # Update step
@@ -441,7 +445,7 @@ def update_train_state(args, model, train_state):
             train_state['early_stopping_step'] = 0
 
         # Stop early ?
-        train_state['stop_early'] =             train_state['early_stopping_step'] >= args.early_stopping_criteria
+        train_state['stop_early'] = train_state['early_stopping_step'] >= args.early_stopping_criteria
 
     return train_state
 
@@ -548,17 +552,17 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
 
 train_state = make_train_state(args)
 
-epoch_bar = tqdm_notebook(desc='training routine', 
+epoch_bar = tqdm(desc='training routine', 
                           total=args.num_epochs,
                           position=0)
 
 dataset.set_split('train')
-train_bar = tqdm_notebook(desc='split=train',
+train_bar = tqdm(desc='split=train',
                           total=dataset.get_num_batches(args.batch_size), 
                           position=1, 
                           leave=True)
 dataset.set_split('val')
-val_bar = tqdm_notebook(desc='split=val',
+val_bar = tqdm(desc='split=val',
                         total=dataset.get_num_batches(args.batch_size), 
                         position=1, 
                         leave=True)
@@ -620,7 +624,6 @@ try:
                                            batch_size=args.batch_size, 
                                            device=args.device)
         running_loss = 0.
-        running_acc = 0.
         classifier.eval()
 
         for batch_index, batch_dict in enumerate(batch_generator):
@@ -721,11 +724,10 @@ def predict_rating(review, classifier, vectorizer, decision_threshold=0.5):
         decision_threshold (float): The numerical boundary which separates the rating classes
     """
     review = preprocess_text(review)
-    
     vectorized_review = torch.tensor(vectorizer.vectorize(review))
     result = classifier(vectorized_review.view(1, -1))
     
-    probability_value = F.sigmoid(result).item()
+    probability_value = torch.sigmoid(result).item()
     index = 1
     if probability_value < decision_threshold:
         index = 0
