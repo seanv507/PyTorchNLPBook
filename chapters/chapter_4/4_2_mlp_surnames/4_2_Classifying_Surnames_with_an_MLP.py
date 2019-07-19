@@ -1,10 +1,11 @@
 #%% Change working directory from the workspace root to the ipynb file location. Turn this addition off with the DataScience.changeDirOnImportExport setting
 import os
+
 try:
-	os.chdir(os.path.join(os.getcwd(), 'chapters/chapter_4/4_2_mlp_surnames'))
-	print(os.getcwd())
+    os.chdir(os.path.join(os.getcwd(), "chapters/chapter_4/4_2_mlp_surnames"))
+    print(os.getcwd())
 except:
-	pass
+    pass
 #%% [markdown]
 # # Classifying Surnames with a Multilayer Perceptron
 #%% [markdown]
@@ -25,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm_notebook
+from tqdm import tqdm
 
 #%% [markdown]
 # ## Data Vectorization classes
@@ -48,22 +49,22 @@ class Vocabulary(object):
             token_to_idx = {}
         self._token_to_idx = token_to_idx
 
-        self._idx_to_token = {idx: token 
-                              for token, idx in self._token_to_idx.items()}
-        
+        self._idx_to_token = {idx: token for token, idx in self._token_to_idx.items()}
+
         self._add_unk = add_unk
         self._unk_token = unk_token
-        
+
         self.unk_index = -1
         if add_unk:
-            self.unk_index = self.add_token(unk_token) 
-        
-        
+            self.unk_index = self.add_token(unk_token)
+
     def to_serializable(self):
         """ returns a dictionary that can be serialized """
-        return {'token_to_idx': self._token_to_idx, 
-                'add_unk': self._add_unk, 
-                'unk_token': self._unk_token}
+        return {
+            "token_to_idx": self._token_to_idx,
+            "add_unk": self._add_unk,
+            "unk_token": self._unk_token,
+        }
 
     @classmethod
     def from_serializable(cls, contents):
@@ -85,7 +86,7 @@ class Vocabulary(object):
             self._token_to_idx[token] = index
             self._idx_to_token[index] = token
         return index
-    
+
     def add_many(self, tokens):
         """Add a list of tokens into the Vocabulary
         
@@ -94,7 +95,7 @@ class Vocabulary(object):
         Returns:
             indices (list): a list of indices corresponding to the tokens
         """
-        return [self.add_token[token] for token in tokens]
+        return [self.add_token(token) for token in tokens]
 
     def lookup_token(self, token):
         """Retrieve the index associated with the token 
@@ -133,12 +134,14 @@ class Vocabulary(object):
     def __len__(self):
         return len(self._token_to_idx)
 
+
 #%% [markdown]
 # ### The Vectorizer
 
 #%%
 class SurnameVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
+
     def __init__(self, surname_vocab, nationality_vocab):
         """
         Args:
@@ -184,13 +187,16 @@ class SurnameVectorizer(object):
 
     @classmethod
     def from_serializable(cls, contents):
-        surname_vocab = Vocabulary.from_serializable(contents['surname_vocab'])
-        nationality_vocab =  Vocabulary.from_serializable(contents['nationality_vocab'])
-        return cls(surname_vocab=surname_vocab, rating_vocab=nationality_vocab)
+        surname_vocab = Vocabulary.from_serializable(contents["surname_vocab"])
+        nationality_vocab = Vocabulary.from_serializable(contents["nationality_vocab"])
+        return cls(surname_vocab=surname_vocab, nationality_vocab=nationality_vocab)
 
     def to_serializable(self):
-        return {'surname_vocab': self.surname_vocab.to_serializable(),
-                'nationality_vocab': self.nationality_vocab.to_serializable()}
+        return {
+            "surname_vocab": self.surname_vocab.to_serializable(),
+            "nationality_vocab": self.nationality_vocab.to_serializable(),
+        }
+
 
 #%% [markdown]
 # ### The Dataset
@@ -206,25 +212,29 @@ class SurnameDataset(Dataset):
         self.surname_df = surname_df
         self._vectorizer = vectorizer
 
-        self.train_df = self.surname_df[self.surname_df.split=='train']
+        self.train_df = self.surname_df[self.surname_df.split == "train"]
         self.train_size = len(self.train_df)
 
-        self.val_df = self.surname_df[self.surname_df.split=='val']
+        self.val_df = self.surname_df[self.surname_df.split == "val"]
         self.validation_size = len(self.val_df)
 
-        self.test_df = self.surname_df[self.surname_df.split=='test']
+        self.test_df = self.surname_df[self.surname_df.split == "test"]
         self.test_size = len(self.test_df)
 
-        self._lookup_dict = {'train': (self.train_df, self.train_size),
-                             'val': (self.val_df, self.validation_size),
-                             'test': (self.test_df, self.test_size)}
+        self._lookup_dict = {
+            "train": (self.train_df, self.train_size),
+            "val": (self.val_df, self.validation_size),
+            "test": (self.test_df, self.test_size),
+        }
 
-        self.set_split('train')
-        
+        self.set_split("train")
+
         # Class weights
         class_counts = surname_df.nationality.value_counts().to_dict()
+
         def sort_key(item):
             return self._vectorizer.nationality_vocab.lookup_token(item[0])
+
         sorted_counts = sorted(class_counts.items(), key=sort_key)
         frequencies = [count for _, count in sorted_counts]
         self.class_weights = 1.0 / torch.tensor(frequencies, dtype=torch.float32)
@@ -239,7 +249,7 @@ class SurnameDataset(Dataset):
             an instance of SurnameDataset
         """
         surname_df = pd.read_csv(surname_csv)
-        train_surname_df = surname_df[surname_df.split=='train']
+        train_surname_df = surname_df[surname_df.split == "train"]
         return cls(surname_df, SurnameVectorizer.from_dataframe(train_surname_df))
 
     @classmethod
@@ -302,12 +312,13 @@ class SurnameDataset(Dataset):
         """
         row = self._target_df.iloc[index]
 
-        surname_vector =             self._vectorizer.vectorize(row.surname)
+        surname_vector = self._vectorizer.vectorize(row.surname)
 
-        nationality_index =             self._vectorizer.nationality_vocab.lookup_token(row.nationality)
+        nationality_index = self._vectorizer.nationality_vocab.lookup_token(
+            row.nationality
+        )
 
-        return {'x_surname': surname_vector,
-                'y_nationality': nationality_index}
+        return {"x_surname": surname_vector, "y_nationality": nationality_index}
 
     def get_num_batches(self, batch_size):
         """Given a batch size, return the number of batches in the dataset
@@ -319,21 +330,22 @@ class SurnameDataset(Dataset):
         """
         return len(self) // batch_size
 
-    
-def generate_batches(dataset, batch_size, shuffle=True,
-                     drop_last=True, device="cpu"): 
+
+def generate_batches(dataset, batch_size, shuffle=True, drop_last=True, device="cpu"):
     """
     A generator function which wraps the PyTorch DataLoader. It will 
       ensure each tensor is on the write device location.
     """
-    dataloader = DataLoader(dataset=dataset, batch_size=batch_size,
-                            shuffle=shuffle, drop_last=drop_last)
+    dataloader = DataLoader(
+        dataset=dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last
+    )
 
     for data_dict in dataloader:
         out_data_dict = {}
         for name, tensor in data_dict.items():
-            out_data_dict[name] = data_dict[name].to(device)
+            out_data_dict[name] = tensor.to(device)
         yield out_data_dict
+
 
 #%% [markdown]
 # ## The Model: SurnameClassifier
@@ -341,6 +353,7 @@ def generate_batches(dataset, batch_size, shuffle=True,
 #%%
 class SurnameClassifier(nn.Module):
     """ A 2-layer Multilayer Perceptron for classifying surnames """
+
     def __init__(self, input_dim, hidden_dim, output_dim):
         """
         Args:
@@ -371,6 +384,7 @@ class SurnameClassifier(nn.Module):
 
         return prediction_vector
 
+
 #%% [markdown]
 # ## Training Routine
 #%% [markdown]
@@ -378,18 +392,21 @@ class SurnameClassifier(nn.Module):
 
 #%%
 def make_train_state(args):
-    return {'stop_early': False,
-            'early_stopping_step': 0,
-            'early_stopping_best_val': 1e8,
-            'learning_rate': args.learning_rate,
-            'epoch_index': 0,
-            'train_loss': [],
-            'train_acc': [],
-            'val_loss': [],
-            'val_acc': [],
-            'test_loss': -1,
-            'test_acc': -1,
-            'model_filename': args.model_state_file}
+    return {
+        "stop_early": False,
+        "early_stopping_step": 0,
+        "early_stopping_best_val": 1e8,
+        "learning_rate": args.learning_rate,
+        "epoch_index": 0,
+        "train_loss": [],
+        "train_acc": [],
+        "val_loss": [],
+        "val_acc": [],
+        "test_loss": -1,
+        "test_acc": -1,
+        "model_filename": args.model_state_file,
+    }
+
 
 def update_train_state(args, model, train_state):
     """Handle the training state updates.
@@ -406,36 +423,40 @@ def update_train_state(args, model, train_state):
     """
 
     # Save one model at least
-    if train_state['epoch_index'] == 0:
-        torch.save(model.state_dict(), train_state['model_filename'])
-        train_state['stop_early'] = False
+    if train_state["epoch_index"] == 0:
+        torch.save(model.state_dict(), train_state["model_filename"])
+        train_state["stop_early"] = False
 
     # Save model if performance improved
-    elif train_state['epoch_index'] >= 1:
-        loss_tm1, loss_t = train_state['val_loss'][-2:]
+    elif train_state["epoch_index"] >= 1:
+        loss_tm1, loss_t = train_state["val_loss"][-2:]
 
         # If loss worsened
-        if loss_t >= train_state['early_stopping_best_val']:
+        if loss_t >= train_state["early_stopping_best_val"]:
             # Update step
-            train_state['early_stopping_step'] += 1
+            train_state["early_stopping_step"] += 1
         # Loss decreased
         else:
             # Save the best model
-            if loss_t < train_state['early_stopping_best_val']:
-                torch.save(model.state_dict(), train_state['model_filename'])
+            if loss_t < train_state["early_stopping_best_val"]:
+                torch.save(model.state_dict(), train_state["model_filename"])
 
             # Reset early stopping step
-            train_state['early_stopping_step'] = 0
+            train_state["early_stopping_step"] = 0
 
         # Stop early ?
-        train_state['stop_early'] =             train_state['early_stopping_step'] >= args.early_stopping_criteria
+        train_state["stop_early"] = (
+            train_state["early_stopping_step"] >= args.early_stopping_criteria
+        )
 
     return train_state
+
 
 def compute_accuracy(y_pred, y_target):
     _, y_pred_indices = y_pred.max(dim=1)
     n_correct = torch.eq(y_pred_indices, y_target).sum().item()
     return n_correct / len(y_pred_indices) * 100
+
 
 #%% [markdown]
 # #### general utilities
@@ -447,9 +468,11 @@ def set_seed_everywhere(seed, cuda):
     if cuda:
         torch.cuda.manual_seed_all(seed)
 
+
 def handle_dirs(dirpath):
     if not os.path.exists(dirpath):
         os.makedirs(dirpath)
+
 
 #%% [markdown]
 # ### Settings and some prep work
@@ -476,26 +499,24 @@ args = Namespace(
 )
 
 if args.expand_filepaths_to_save_dir:
-    args.vectorizer_file = os.path.join(args.save_dir,
-                                        args.vectorizer_file)
+    args.vectorizer_file = os.path.join(args.save_dir, args.vectorizer_file)
 
-    args.model_state_file = os.path.join(args.save_dir,
-                                         args.model_state_file)
-    
+    args.model_state_file = os.path.join(args.save_dir, args.model_state_file)
+
     print("Expanded filepaths: ")
     print("\t{}".format(args.vectorizer_file))
     print("\t{}".format(args.model_state_file))
-    
+
 # Check CUDA
 if not torch.cuda.is_available():
     args.cuda = False
 
 args.device = torch.device("cuda" if args.cuda else "cpu")
-    
+
 print("Using CUDA: {}".format(args.cuda))
 
 
-# Set seed for reproducability
+# Set seed for reproducibility
 set_seed_everywhere(args.seed, args.cuda)
 
 # handle dirs
@@ -508,18 +529,21 @@ handle_dirs(args.save_dir)
 if args.reload_from_files:
     # training from a checkpoint
     print("Reloading!")
-    dataset = SurnameDataset.load_dataset_and_load_vectorizer(args.surname_csv,
-                                                              args.vectorizer_file)
+    dataset = SurnameDataset.load_dataset_and_load_vectorizer(
+        args.surname_csv, args.vectorizer_file
+    )
 else:
     # create dataset and vectorizer
     print("Creating fresh!")
     dataset = SurnameDataset.load_dataset_and_make_vectorizer(args.surname_csv)
     dataset.save_vectorizer(args.vectorizer_file)
-    
+
 vectorizer = dataset.get_vectorizer()
-classifier = SurnameClassifier(input_dim=len(vectorizer.surname_vocab), 
-                               hidden_dim=args.hidden_dim, 
-                               output_dim=len(vectorizer.nationality_vocab))
+classifier = SurnameClassifier(
+    input_dim=len(vectorizer.surname_vocab),
+    hidden_dim=args.hidden_dim,
+    output_dim=len(vectorizer.nationality_vocab),
+)
 
 #%% [markdown]
 # ### Training loop
@@ -528,42 +552,44 @@ classifier = SurnameClassifier(input_dim=len(vectorizer.surname_vocab),
 classifier = classifier.to(args.device)
 dataset.class_weights = dataset.class_weights.to(args.device)
 
-    
+
 loss_func = nn.CrossEntropyLoss(dataset.class_weights)
 optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
-                                                 mode='min', factor=0.5,
-                                                 patience=1)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer=optimizer, mode="min", factor=0.5, patience=1
+)
 
 train_state = make_train_state(args)
 
-epoch_bar = tqdm_notebook(desc='training routine', 
-                          total=args.num_epochs,
-                          position=0)
+epoch_bar = tqdm(desc="training routine", total=args.num_epochs, position=0)
 
-dataset.set_split('train')
-train_bar = tqdm_notebook(desc='split=train',
-                          total=dataset.get_num_batches(args.batch_size), 
-                          position=1, 
-                          leave=True)
-dataset.set_split('val')
-val_bar = tqdm_notebook(desc='split=val',
-                        total=dataset.get_num_batches(args.batch_size), 
-                        position=1, 
-                        leave=True)
+dataset.set_split("train")
+train_bar = tqdm(
+    desc="split=train",
+    total=dataset.get_num_batches(args.batch_size),
+    position=1,
+    leave=True,
+)
+dataset.set_split("val")
+val_bar = tqdm(
+    desc="split=val",
+    total=dataset.get_num_batches(args.batch_size),
+    position=1,
+    leave=True,
+)
 
 try:
     for epoch_index in range(args.num_epochs):
-        train_state['epoch_index'] = epoch_index
+        train_state["epoch_index"] = epoch_index
 
         # Iterate over training dataset
 
         # setup: batch generator, set loss and acc to 0, set train mode on
 
-        dataset.set_split('train')
-        batch_generator = generate_batches(dataset, 
-                                           batch_size=args.batch_size, 
-                                           device=args.device)
+        dataset.set_split("train")
+        batch_generator = generate_batches(
+            dataset, batch_size=args.batch_size, device=args.device
+        )
         running_loss = 0.0
         running_acc = 0.0
         classifier.train()
@@ -576,10 +602,10 @@ try:
             optimizer.zero_grad()
 
             # step 2. compute the output
-            y_pred = classifier(batch_dict['x_surname'])
+            y_pred = classifier(batch_dict["x_surname"])
 
             # step 3. compute the loss
-            loss = loss_func(y_pred, batch_dict['y_nationality'])
+            loss = loss_func(y_pred, batch_dict["y_nationality"])
             loss_t = loss.item()
             running_loss += (loss_t - running_loss) / (batch_index + 1)
 
@@ -590,100 +616,99 @@ try:
             optimizer.step()
             # -----------------------------------------
             # compute the accuracy
-            acc_t = compute_accuracy(y_pred, batch_dict['y_nationality'])
+            acc_t = compute_accuracy(y_pred, batch_dict["y_nationality"])
             running_acc += (acc_t - running_acc) / (batch_index + 1)
 
             # update bar
-            train_bar.set_postfix(loss=running_loss, acc=running_acc, 
-                            epoch=epoch_index)
+            train_bar.set_postfix(loss=running_loss, acc=running_acc, epoch=epoch_index)
             train_bar.update()
 
-        train_state['train_loss'].append(running_loss)
-        train_state['train_acc'].append(running_acc)
+        train_state["train_loss"].append(running_loss)
+        train_state["train_acc"].append(running_acc)
 
         # Iterate over val dataset
 
         # setup: batch generator, set loss and acc to 0; set eval mode on
-        dataset.set_split('val')
-        batch_generator = generate_batches(dataset, 
-                                           batch_size=args.batch_size, 
-                                           device=args.device)
-        running_loss = 0.
-        running_acc = 0.
+        dataset.set_split("val")
+        batch_generator = generate_batches(
+            dataset, batch_size=args.batch_size, device=args.device
+        )
+        running_loss = 0.0
+        running_acc = 0.0
         classifier.eval()
 
         for batch_index, batch_dict in enumerate(batch_generator):
 
             # compute the output
-            y_pred =  classifier(batch_dict['x_surname'])
+            y_pred = classifier(batch_dict["x_surname"])
 
             # step 3. compute the loss
-            loss = loss_func(y_pred, batch_dict['y_nationality'])
+            loss = loss_func(y_pred, batch_dict["y_nationality"])
             loss_t = loss.to("cpu").item()
             running_loss += (loss_t - running_loss) / (batch_index + 1)
 
             # compute the accuracy
-            acc_t = compute_accuracy(y_pred, batch_dict['y_nationality'])
+            acc_t = compute_accuracy(y_pred, batch_dict["y_nationality"])
             running_acc += (acc_t - running_acc) / (batch_index + 1)
-            val_bar.set_postfix(loss=running_loss, acc=running_acc, 
-                            epoch=epoch_index)
+            val_bar.set_postfix(loss=running_loss, acc=running_acc, epoch=epoch_index)
             val_bar.update()
 
-        train_state['val_loss'].append(running_loss)
-        train_state['val_acc'].append(running_acc)
+        train_state["val_loss"].append(running_loss)
+        train_state["val_acc"].append(running_acc)
 
-        train_state = update_train_state(args=args, model=classifier,
-                                         train_state=train_state)
+        train_state = update_train_state(
+            args=args, model=classifier, train_state=train_state
+        )
 
-        scheduler.step(train_state['val_loss'][-1])
+        scheduler.step(train_state["val_loss"][-1])
 
-        if train_state['stop_early']:
+        if train_state["stop_early"]:
             break
 
         train_bar.n = 0
         val_bar.n = 0
         epoch_bar.update()
 except KeyboardInterrupt:
-    print("Exitting loop")
+    print("Exiting loop")
 
 
 #%%
 # compute the loss & accuracy on the test set using the best available model
 
-classifier.load_state_dict(torch.load(train_state['model_filename']))
+classifier.load_state_dict(torch.load(train_state["model_filename"]))
 
 classifier = classifier.to(args.device)
 dataset.class_weights = dataset.class_weights.to(args.device)
 loss_func = nn.CrossEntropyLoss(dataset.class_weights)
 
-dataset.set_split('test')
-batch_generator = generate_batches(dataset, 
-                                   batch_size=args.batch_size, 
-                                   device=args.device)
-running_loss = 0.
-running_acc = 0.
+dataset.set_split("test")
+batch_generator = generate_batches(
+    dataset, batch_size=args.batch_size, device=args.device
+)
+running_loss = 0.0
+running_acc = 0.0
 classifier.eval()
 
 for batch_index, batch_dict in enumerate(batch_generator):
     # compute the output
-    y_pred =  classifier(batch_dict['x_surname'])
-    
+    y_pred = classifier(batch_dict["x_surname"])
+
     # compute the loss
-    loss = loss_func(y_pred, batch_dict['y_nationality'])
+    loss = loss_func(y_pred, batch_dict["y_nationality"])
     loss_t = loss.item()
     running_loss += (loss_t - running_loss) / (batch_index + 1)
 
     # compute the accuracy
-    acc_t = compute_accuracy(y_pred, batch_dict['y_nationality'])
+    acc_t = compute_accuracy(y_pred, batch_dict["y_nationality"])
     running_acc += (acc_t - running_acc) / (batch_index + 1)
 
-train_state['test_loss'] = running_loss
-train_state['test_acc'] = running_acc
+train_state["test_loss"] = running_loss
+train_state["test_acc"] = running_acc
 
 
 #%%
-print("Test loss: {};".format(train_state['test_loss']))
-print("Test Accuracy: {}".format(train_state['test_acc']))
+print("Test loss: {};".format(train_state["test_loss"]))
+print("Test Accuracy: {}".format(train_state["test_acc"]))
 
 #%% [markdown]
 # ### Inference
@@ -709,16 +734,18 @@ def predict_nationality(surname, classifier, vectorizer):
     predicted_nationality = vectorizer.nationality_vocab.lookup_index(index)
     probability_value = probability_values.item()
 
-    return {'nationality': predicted_nationality, 'probability': probability_value}
+    return {"nationality": predicted_nationality, "probability": probability_value}
 
 
 #%%
 new_surname = input("Enter a surname to classify: ")
 classifier = classifier.to("cpu")
 prediction = predict_nationality(new_surname, classifier, vectorizer)
-print("{} -> {} (p={:0.2f})".format(new_surname,
-                                    prediction['nationality'],
-                                    prediction['probability']))
+print(
+    "{} -> {} (p={:0.2f})".format(
+        new_surname, prediction["nationality"], prediction["probability"]
+    )
+)
 
 #%% [markdown]
 # ### Top-K Inference
@@ -733,17 +760,16 @@ def predict_topk_nationality(name, classifier, vectorizer, k=5):
     vectorized_name = torch.tensor(vectorized_name).view(1, -1)
     prediction_vector = classifier(vectorized_name, apply_softmax=True)
     probability_values, indices = torch.topk(prediction_vector, k=k)
-    
+
     # returned size is 1,k
     probability_values = probability_values.detach().numpy()[0]
     indices = indices.detach().numpy()[0]
-    
+
     results = []
     for prob_value, index in zip(probability_values, indices):
         nationality = vectorizer.nationality_vocab.lookup_index(index)
-        results.append({'nationality': nationality, 
-                        'probability': prob_value})
-    
+        results.append({"nationality": nationality, "probability": prob_value})
+
     return results
 
 
@@ -752,16 +778,19 @@ classifier = classifier.to("cpu")
 
 k = int(input("How many of the top predictions to see? "))
 if k > len(vectorizer.nationality_vocab):
-    print("Sorry! That's more than the # of nationalities we have.. defaulting you to max size :)")
+    print(
+        "Sorry! That's more than the # of nationalities we have.. defaulting you to max size :)"
+    )
     k = len(vectorizer.nationality_vocab)
-    
+
 predictions = predict_topk_nationality(new_surname, classifier, vectorizer, k=k)
 
 print("Top {} predictions:".format(k))
 print("===================")
 for prediction in predictions:
-    print("{} -> {} (p={:0.2f})".format(new_surname,
-                                        prediction['nationality'],
-                                        prediction['probability']))
-
+    print(
+        "{} -> {} (p={:0.2f})".format(
+            new_surname, prediction["nationality"], prediction["probability"]
+        )
+    )
 

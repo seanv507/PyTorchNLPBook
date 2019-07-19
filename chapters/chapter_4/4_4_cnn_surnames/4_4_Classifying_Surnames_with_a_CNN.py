@@ -91,7 +91,7 @@ class Vocabulary(object):
         Returns:
             indices (list): a list of indices corresponding to the tokens
         """
-        return [self.add_token[token] for token in tokens]
+        return [self.add_token(token) for token in tokens]
 
     def lookup_token(self, token):
         """Retrieve the index associated with the token 
@@ -187,7 +187,7 @@ class SurnameVectorizer(object):
     def from_serializable(cls, contents):
         surname_vocab = Vocabulary.from_serializable(contents['surname_vocab'])
         nationality_vocab =  Vocabulary.from_serializable(contents['nationality_vocab'])
-        return cls(review_vocab=review_vocab, rating_vocab=rating_vocab, 
+        return cls(surname_vocab=surname_vocab, nationality_vocab=nationality_vocab, 
                    max_surname_length=contents['max_surname_length'])
 
     def to_serializable(self):
@@ -506,7 +506,7 @@ def handle_dirs(dirpath):
     if not os.path.exists(dirpath):
         os.makedirs(dirpath)
         
-# Set seed for reproducability
+# Set seed for reproducibility
 set_seed_everywhere(args.seed, args.cuda)
 
 # handle dirs
@@ -649,7 +649,7 @@ try:
         val_bar.n = 0
         epoch_bar.update()
 except KeyboardInterrupt:
-    print("Exitting loop")
+    print("Exiting loop")
 
 
 #%%
